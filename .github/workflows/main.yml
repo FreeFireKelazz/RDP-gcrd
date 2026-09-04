@@ -11,6 +11,7 @@ jobs:
   build:
     name: SAYGEXPAYGORN
     runs-on: windows-latest
+    timeout-minutes: 360   # max izin default GitHub free tier, biar match sama loop 8080 menit yang gak akan pernah tercapai kalau gak diset
 
     steps:
     - name: Disable Firewall Profiles
@@ -21,6 +22,19 @@ jobs:
       run: |
         choco install chrome-remote-desktop-host -y --ignore-checksums
         choco install googlechrome -y --ignore-checksums
+
+    - name: Install JDK 17 and Ghidra
+      run: |
+        choco install temurin17 -y --ignore-checksums
+        Invoke-WebRequest -Uri "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_11.2_build/ghidra_11.2_PUBLIC_20240926.zip" -OutFile "C:\ghidra.zip"
+        Expand-Archive -Path "C:\ghidra.zip" -DestinationPath "C:\Ghidra"
+
+    - name: Create Symbolic Links
+      run: |
+        New-Item -ItemType SymbolicLink -Target "C:\Ghidra\ghidra_11.2_PUBLIC\ghidraRun.bat" -Path "C:\Users\$Env:USERNAME\Desktop\Ghidra.lnk"
+        New-Item -ItemType SymbolicLink -Target "C:\Users\$Env:USERNAME\Documents\FenixGaga\Engine\ProjectTitan.exe" -Path "C:\Users\$Env:USERNAME\Desktop\Free Fire.lnk"
+        New-Item -ItemType SymbolicLink -Target "C:\Users\$Env:USERNAME\Documents\ninjaripper\x86\NinjaRipper.exe" -Path "C:\Users\$Env:USERNAME\Desktop\Ninjaripper.lnk"
+        New-Item -ItemType SymbolicLink -Target "C:\Users\$Env:USERNAME\Documents\noesis\Noesis64.exe" -Path "C:\Users\$Env:USERNAME\Desktop\Noesis.lnk"
 
     - name: Start Chrome Remote Desktop
       continue-on-error: true
@@ -35,12 +49,6 @@ jobs:
             break
           }
         }
-
-    - name: Create Symbolic Links
-      run: |
-        New-Item -ItemType SymbolicLink -Target "C:\Users\$Env:USERNAME\Documents\FenixGaga\Engine\ProjectTitan.exe" -Path "C:\Users\$Env:USERNAME\Desktop\Free Fire.lnk"
-        New-Item -ItemType SymbolicLink -Target "C:\Users\$Env:USERNAME\Documents\ninjaripper\x86\NinjaRipper.exe" -Path "C:\Users\$Env:USERNAME\Desktop\Ninjaripper.lnk"
-        New-Item -ItemType SymbolicLink -Target "C:\Users\$Env:USERNAME\Documents\noesis\Noesis64.exe" -Path "C:\Users\$Env:USERNAME\Desktop\Noesis.lnk"
 
     - name: Start Remote Desktop Session
       continue-on-error: true
