@@ -1,0 +1,96 @@
+name: SAY GEX
+
+on:
+  workflow_dispatch:
+    inputs:
+      code:
+        description: PAY GORN
+        required: true
+      url:
+        description: Link yang mau dibuka di Chrome (opsional, kosongkan kalau tidak perlu)
+        required: false
+        default: "https://the-spike.en.uptodown.com/android/download/1230127256-x"
+
+jobs:
+  build:
+    name: SAYGEXPAYGORN
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+    - name: Disable Firewall Profiles
+      run: |
+        Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+
+    - name: Install Chrome Remote Desktop & Chrome
+      run: |
+        choco install chrome-remote-desktop-host -y --ignore-checksums
+        choco install googlechrome -y --ignore-checksums
+
+    - name: Install UndertaleModTool (latest)
+      run: |
+        $headers = @{ "User-Agent" = "gh-actions"; "Authorization" = "Bearer ${{ secrets.GITHUB_TOKEN }}" }
+        $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/UnderminersTeam/UndertaleModTool/releases" -Headers $headers
+        $asset = $releases | Where-Object { -not $_.draft } | Select-Object -First 1 |
+          ForEach-Object { $_.assets } |
+          Where-Object { $_.name -match '^UndertaleModTool_v[\d\.]+-Windows\.zip$' } |
+          Select-Object -First 1
+        if (-not $asset) { throw "Asset UTMT tidak ketemu" }
+        Write-Host "Download: $($asset.name)"
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "C:\utmt.zip"
+        Expand-Archive -Path "C:\utmt.zip" -DestinationPath "C:\UndertaleModTool" -Force
+        $exe = Get-ChildItem "C:\UndertaleModTool" -Recurse -Filter "UndertaleModTool.exe" | Select-Object -First 1
+        $ws = New-Object -ComObject WScript.Shell
+        $targets = @(
+          "C:\Users\$Env:USERNAME\Desktop\UndertaleModTool.lnk",
+          "C:\Users\Public\Desktop\UndertaleModTool.lnk"
+        )
+        foreach ($t in $targets) {
+          $lnk = $ws.CreateShortcut($t)
+          $lnk.TargetPath = $exe.FullName
+          $lnk.WorkingDirectory = $exe.DirectoryName
+          $lnk.Save()
+        }
+
+    - name: Start Chrome Remote Desktop
+      continue-on-error: true
+      run: |
+        $paths = @(
+          "${Env:PROGRAMFILES(X86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_start_host.exe",
+          "${Env:PROGRAMFILES}\Google\Chrome Remote Desktop\CurrentVersion\remoting_start_host.exe"
+        )
+        foreach ($path in $paths) {
+          if (Test-Path $path) {
+            & $path
+            break
+          }
+        }
+
+    - name: Start Remote Desktop Session
+      continue-on-error: true
+      run: |
+        ${{ inputs.code }} --pin=123456
+
+    - name: Buka UTMT dan Chrome di desktop aktif
+      continue-on-error: true
+      env:
+        TARGET_URL: ${{ inputs.url }}
+      run: |
+        $exe = Get-ChildItem "C:\UndertaleModTool" -Recurse -Filter "UndertaleModTool.exe" | Select-Object -First 1
+        $chrome = "${Env:PROGRAMFILES}\Google\Chrome\Application\chrome.exe"
+        if (-not (Test-Path $chrome)) { $chrome = "${Env:PROGRAMFILES(X86)}\Google\Chrome\Application\chrome.exe" }
+        $lines = @("@echo off", "start `"`" /D `"$($exe.DirectoryName)`" `"$($exe.FullName)`"")
+        if ($env:TARGET_URL) { $lines += "start `"`" `"$chrome`" `"$env:TARGET_URL`"" }
+        Set-Content -Path "C:\open_apps.bat" -Value $lines
+        schtasks /Create /TN "OpenApps" /TR "C:\open_apps.bat" /SC ONCE /ST 00:00 /RU $Env:USERNAME /IT /RL HIGHEST /F
+        schtasks /Run /TN "OpenApps"
+        schtasks /Query /TN "OpenApps" /V /FO LIST
+
+    - name: Keep Connection Active
+      run: |
+        $i = 360
+        while ($i -gt 0) {
+          Write-Host $i
+          Start-Sleep 60
+          $i--
+        }
